@@ -1,4 +1,4 @@
-pymodaq_plugins_template
+pymodaq_plugins_inficon
 ########################
 
 .. the following must be adapted to your developed package, links to pypi, github  description...
@@ -25,16 +25,15 @@ Use this template to create a repository on your account and start the developme
 Authors
 =======
 
-* First Author  (myemail@xxx.org)
-* Other author (myotheremail@xxx.org)
+* Lucas Nicolas  (lucas.nicolas@onera.fr)
 
 .. if needed use this field
 
     Contributors
     ============
 
-    * First Contributor
-    * Other Contributors
+    * Benoît Pons
+
 
 .. if needed use this field
 
@@ -46,43 +45,24 @@ Instruments
 
 Below is the list of instruments included in this plugin
 
-Actuators
-+++++++++
-
-* **yyy**: control of yyy actuators
-* **xxx**: control of xxx actuators
-
 Viewer0D
 ++++++++
 
-* **yyy**: control of yyy 0D detector
-* **xxx**: control of xxx 0D detector
+* **STM-2**: control of STM-2 USB Thin Film Rate/ Thickness Monitor.
+* **STM-2 Multi**: control of several STM-2, with all data plotted on one graph.
 
-Viewer1D
-++++++++
-
-* **yyy**: control of yyy 1D detector
-* **xxx**: control of xxx 1D detector
-
-
-Viewer2D
-++++++++
-
-* **yyy**: control of yyy 2D detector
-* **xxx**: control of xxx 2D detector
-
-
-PID Models
-==========
-
-
-Extensions
-==========
 
 
 Installation instructions
 =========================
 
-* PyMoDAQ’s version.
-* Operating system’s version.
-* What manufacturer’s drivers should be installed to make this plugin run?
+* PyMoDAQ’s 5.0.x and later
+* Requires installation of the following drivers:
+        SMDP protocol server
+        USB installer
+        STM-2 Application software
+    They are all available in the Download section of the Inficon STM-2 web page:
+        https://www.inficon.com/en/products/thin-film-technology/thickness-monitor-stm-2-usb-thin-film-rate
+    Another USB driver may be required for the STM-2 to be detected by the computer:
+        CP210x Windows Drivers from Silicon Labs: https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers?tab=downloads
+    pyserial package is also required.
