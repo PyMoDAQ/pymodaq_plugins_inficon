@@ -215,13 +215,18 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
 
         channels = self._active_channels()
         controller_names = list(self.controllers.keys())
-        dummy_dfp = [
-            DataFromPlugins(name=channel,
-                             data=[np.array([0]) for _ in controller_names],
-                             dim='Data0D', labels=controller_names)
-            for channel in channels
-        ]
-        self.dte_signal_temp.emit(DataToExport('STM-2 Group Data', data=dummy_dfp))
+
+        if channels and controller_names:
+            dummy_dfp = []
+            for channel in channels:
+                name, unit = self._channel_getters[channel]
+                dummy_dfp.append(
+                    DataFromPlugins(name=channel,
+                                    data=[np.array([0.0]) for name in controller_names],
+                                    dim='Data0D',
+                                    labels=controller_names,
+                                    units=unit))
+            self.dte_signal_temp.emit(DataToExport('STM-2 Group Data', data=dummy_dfp))
 
         initialized = len(self.controllers) > 0
         info = f"{len(self.controllers)} STM-2 connecté(s) : {', '.join(self.controllers.keys())}"
@@ -257,7 +262,8 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
                     value = np.nan
                 values.append(np.array([value]))
             data_list.append(DataFromPlugins(name=channel, data=values, dim='Data0D',
-                                              labels=[f'{name} ({unit})' for name in controller_names]))
+                                            labels=[f'{name}' for name in controller_names],
+                                            units = 'test'))
 
         self.dte_signal.emit(DataToExport('STM-2 Group Data', data=data_list))
 
