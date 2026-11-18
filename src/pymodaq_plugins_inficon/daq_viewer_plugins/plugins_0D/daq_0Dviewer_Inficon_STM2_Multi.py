@@ -8,7 +8,7 @@ from pymodaq_gui.parameter.pymodaq_ptypes import GroupParameter, registerParamet
 from pymodaq.control_modules.viewer_utility_classes import DAQ_Viewer_base, comon_parameters, main
 from pymodaq.utils.data import DataFromPlugins
 
-from pymodaq_plugins_inficon.hardware.STM2_Python_Wrapper import InficonSTM2
+from pymodaq_plugins_inficon.hardware.stm2 import InficonSTM2
 
 
 qcm_params = [
