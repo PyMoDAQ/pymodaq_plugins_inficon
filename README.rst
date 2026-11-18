@@ -19,25 +19,15 @@ pymodaq_plugins_inficon
     :target: https://github.com/PyMoDAQ/pymodaq_plugins_template/actions/workflows/Test.yml
 
 
-Use this template to create a repository on your account and start the development of your own PyMoDAQ plugin!
-
-
 Authors
 =======
 
-* Lucas Nicolas  (lucas.nicolas@onera.fr)
-
-.. if needed use this field
+* Lucas Nicolas (lucas.nicolas@onera.fr)
 
     Contributors
     ============
 
     * Benoît Pons
-
-
-.. if needed use this field
-
-  Depending on the plugin type, delete/complete the fields below
 
 
 Instruments
@@ -57,12 +47,9 @@ Installation instructions
 =========================
 
 * PyMoDAQ’s 5.0.x and later
-* Requires installation of the following drivers:
-        SMDP protocol server
-        USB installer
-        STM-2 Application software
+* Requires installation of the following drivers: SMDP protocol server, USB installer, STM-2 Application software.
     They are all available in the Download section of the Inficon STM-2 web page:
         https://www.inficon.com/en/products/thin-film-technology/thickness-monitor-stm-2-usb-thin-film-rate
     Another USB driver may be required for the STM-2 to be detected by the computer:
         CP210x Windows Drivers from Silicon Labs: https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers?tab=downloads
-    pyserial package is also required.
+    Pyserial package is also required.
