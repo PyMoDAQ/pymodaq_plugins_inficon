@@ -1,6 +1,7 @@
 import numpy as np
 
 from pymodaq_utils.utils import ThreadCommand
+from pymodaq_utils.logger import set_logger, get_module_name
 from pymodaq_data.data import DataToExport
 from pymodaq_gui.parameter import Parameter
 from pymodaq_gui.parameter.pymodaq_ptypes import GroupParameter, registerParameterType
@@ -8,7 +9,9 @@ from pymodaq_gui.parameter.pymodaq_ptypes import GroupParameter, registerParamet
 from pymodaq.control_modules.viewer_utility_classes import DAQ_Viewer_base, comon_parameters, main
 from pymodaq.utils.data import DataFromPlugins
 
-from pymodaq_plugins_inficon.hardware.STM2_Python_Wrapper import InficonSTM2
+from pymodaq_plugins_inficon.hardware.stm2 import InficonSTM2, find_stm2, make_label, port_from_label
+
+logger = set_logger(get_module_name(__file__))
 
 
 qcm_params = [
@@ -66,11 +69,18 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
     its own window, plotting every connected unit as a separate curve within it. To add more
     checkable channels (film mass for instance) one have to edit this code.
 
+    The STM-2 units are searched when the detector is initialized (no hardware is needed to create
+    the module). At initialization, the QCM entries without a serial number are given the detected
+    units that are not selected yet. Averaging of several grabs is done by PyMoDAQ (Naverage); the
+    averaging done by each unit is set with the 'Samples number' parameter.
+
     Attributes
     -----------
     controllers: dict[str, InficonSTM2]
         Maps a QCM group child name ('qcm_1', 'qcm_2', ...) to its open InficonSTM2 connection.
     """
+    hardware_averaging = False
+
     N_QCM = 4 #Number of STM2 controllers
     params = comon_parameters + [
         {'title': 'Selected channel :', 'name': 'channel', 'type': 'group', 'children': [
@@ -79,7 +89,9 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
             {'title': 'Thickness growth rate (Å/s)', 'name': 'thickness_rate', 'type': 'bool', 'value': True},
         ]},
         {'title': 'Refresh COM ports :', 'name': 'refresh_ports', 'type': 'bool_push'},
-        {'title': 'Zeroes thickness :', 'name': 'set_timer_thickness_zeroes', 'type': 'bool_push'},
+        {'title': 'Zero thickness and timer on connection :', 'name': 'zero_on_connect', 'type': 'bool',
+         'value': False},
+        {'title': 'Zero thickness and timer :', 'name': 'set_timer_thickness_zeroes', 'type': 'bool_push'},
         {'title': 'Film name :', 'name': 'film_name', 'type': 'str'},
         {'title': 'Film density :', 'name': 'film_density', 'type': 'float', 'max': 99.99, 'min': 0.40},
         {'title': 'Film Z-ratio :', 'name': 'film_zratio', 'type': 'float', 'max': 9.999, 'min': 0.100},
@@ -103,35 +115,46 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
 
     @staticmethod
     def _port_from_label(label: str) -> str:
-        return label.rsplit('(', 1)[-1].rstrip(')') if label else ''
+        return port_from_label(label)
+
+    def _report_error(self, message: str):
+        logger.error(message)
+        self.emit_status(ThreadCommand('Update_Status', [message, 'log']))
 
     def ini_attributes(self):
-        self.controllers: dict = {}      # nom du QCM -> InficonSTM2 connecté
-        self._ports_in_use: dict = {}    # nom du QCM -> port actuellement connecté
-        self.stm2_ports = InficonSTM2().stm2_ports
-        self.refresh_available_ports()
+        # no hardware access here: the module must be creatable without any STM-2 connected
+        self.controllers: dict = {}      # QCM name -> connected InficonSTM2
+        self._ports_in_use: dict = {}    # QCM name -> port currently connected
+        self.stm2_ports: list = []
 
-    def refresh_available_ports(self):
-        """Scan the COM ports and update every QCM's device_serial_number choices, keeping the
-        currently selected value if it is still valid.
-        A controller needs to be connected in PyMoDAQ for this method to work."""
-        self.stm2_ports = InficonSTM2().stm2_ports
-        labels = []
-        for port in self.stm2_ports:
-            try:
-                sn = InficonSTM2(port).get_serial_number()
-                labels.append(f'{sn} ({port})')
-            except Exception as e:
-                self.emit_status(ThreadCommand('Update_Status', [f"Port {port} injoignable : {e}", 'log']))
+    def refresh_available_ports(self) -> list:
+        """Scan the serial ports and update every QCM's device_serial_number choices, keeping the
+        currently selected value if it is still valid. Returns the labels of the detected units."""
+        found = find_stm2()
+        self.stm2_ports = list(found)
+        labels = [make_label(sn, port) for port, sn in found.items()]
 
-        for qcm in self.settings.child('activated_stm2').children():
-            sn_child = qcm.child('device_serial_number')
-            current = sn_child.value()
-            sn_child.setLimits(labels)
-            if current in labels:
-                sn_child.setValue(current)
+        with self.settings.treeChangeBlocker():
+            for qcm in self.settings.child('activated_stm2').children():
+                sn_child = qcm.child('device_serial_number')
+                current = sn_child.value()
+                sn_child.setLimits(labels)
+                if current in labels:
+                    sn_child.setValue(current)
 
-        self.emit_status(ThreadCommand('Update_Status', [f'STM-2 détectés : {labels}', 'log']))
+        self.emit_status(ThreadCommand('Update_Status', [f'Detected STM-2 : {labels}', 'log']))
+        return labels
+
+    def assign_free_units(self, labels: list):
+        """Give each activated QCM without a valid serial number a detected unit not selected yet."""
+        qcms = self.settings.child('activated_stm2').children()
+        used = {qcm.child('device_serial_number').value() for qcm in qcms}
+        free = [label for label in labels if label not in used]
+        with self.settings.treeChangeBlocker():
+            for qcm in qcms:
+                sn_child = qcm.child('device_serial_number')
+                if qcm.value() and sn_child.value() not in labels and free:
+                    sn_child.setValue(free.pop(0))
 
     def sync_controllers(self):
         """Rebuild self.controllers from the current parameter tree: connect any activated QCM
@@ -140,7 +163,7 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         active = {}
         for qcm in self.settings.child('activated_stm2').children():
             name = qcm.name()
-            if not qcm.value():  # case décochée
+            if not qcm.value():  # unchecked
                 continue
             label = qcm.child('device_serial_number').value()
             port = self._port_from_label(label)
@@ -148,24 +171,32 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
                 continue
             active[name] = port
 
-        # déconnecter ce qui n'est plus actif
+        # disconnect what is not active anymore
         for name in list(self.controllers.keys()):
-            if name not in active:
-                self.controllers.pop(name, None)
+            if name not in active or self._ports_in_use.get(name) != active[name]:
+                self.controllers.pop(name).close()
                 self._ports_in_use.pop(name, None)
 
-        # connecter/reconnecter ce qui a changé
+        # connect what changed
+        zero = self.settings.child('zero_on_connect').value()
         for name, port in active.items():
-            if self._ports_in_use.get(name) != port:
+            if name not in self.controllers:
                 try:
                     ctrl = InficonSTM2(port)
-                    ctrl.set_timer_thickness_zeroes()
+                    try:
+                        if zero:
+                            ctrl.set_timer_thickness_zeroes()
+                        status = ctrl.get_cristal_status()  # also checks that the unit answers
+                    except Exception:
+                        ctrl.close()
+                        raise
                     self.controllers[name] = ctrl
                     self._ports_in_use[name] = port
-                    self.settings.child('activated_stm2', name, 'crystal_status').setValue(
-                        ctrl.get_cristal_status())
+                    with self.settings.treeChangeBlocker():
+                        self.settings.child('activated_stm2', name, 'crystal_status').setValue(status)
                 except Exception as e:
-                    self.emit_status(ThreadCommand('Update_Status', [f'Connexion {name} impossible : {e}', 'log']))
+                    logger.exception(f'Could not connect {name}')
+                    self._report_error(f'Could not connect {name} : {e}')
 
     def commit_settings(self, param: Parameter):
         """Apply the consequences of a change of value in the detector settings.
@@ -181,37 +212,56 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         param: Parameter
             channel : checkbox to chose which channel (frequency/thickness/thickness_rate) to plot during grab data.
             refresh_ports : relaunch port/serial number detection for available units
-            set_timer_thickness_zeroes : set thickness to 0 for all connected controllers
+            zero_on_connect : zero thickness and timer each time a unit gets connected
+            set_timer_thickness_zeroes : zero thickness and timer for all connected controllers
             film_name / film_density / film_zratio / samples_number : the same for all controllers
             device_serial_number managed by sync_controllers() method
         """
+        name = param.name()
         try:
-            if param.name() == 'refresh_ports':
-                self.refresh_available_ports()
+            if name == 'refresh_ports':
+                if param.value():
+                    try:
+                        self.refresh_available_ports()
+                    finally:
+                        param.setValue(False)
+                return
 
             self.sync_controllers()
 
-            if param.name() == 'set_timer_thickness_zeroes':
-                for ctrl in self.controllers.values():
-                    ctrl.set_timer_thickness_zeroes()
-            elif param.name() == 'film_name':
+            if name == 'set_timer_thickness_zeroes':
+                if param.value():  # a bool_push goes back to False after the action, nothing to do then
+                    try:
+                        for ctrl in self.controllers.values():
+                            ctrl.set_timer_thickness_zeroes()
+                    finally:
+                        param.setValue(False)
+            elif name == 'film_name':
                 for ctrl in self.controllers.values():
                     ctrl.set_film_name(param.value())
-            elif param.name() == 'film_density':
+            elif name == 'film_density':
                 for ctrl in self.controllers.values():
                     ctrl.set_film_density(param.value())
-            elif param.name() == 'film_zratio':
+            elif name == 'film_zratio':
                 for ctrl in self.controllers.values():
                     ctrl.set_film_zratio(param.value())
-            elif param.name() == 'samples_number':
+            elif name == 'samples_number':
                 for ctrl in self.controllers.values():
                     ctrl.set_samples_number(param.value())
         except Exception as e:
-            self.emit_status(ThreadCommand('Update_Status', [str(e), 'log']))
+            logger.exception(f'Could not apply the setting {name}')
+            self._report_error(f'Could not apply the setting {name} : {e}')
 
     def ini_detector(self, controller=None):
         """Detector communication initialization: connects every currently activated QCM."""
-        self.sync_controllers()
+        try:
+            labels = self.refresh_available_ports()
+            self.assign_free_units(labels)
+            self.sync_controllers()
+        except Exception as e:
+            logger.exception('STM-2 initialization failed')
+            self._report_error(f'STM-2 initialization failed : {e}')
+            return f'STM-2 initialization failed : {e}', False
 
         channels = self._active_channels()
         controller_names = list(self.controllers.keys())
@@ -219,21 +269,23 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         if channels and controller_names:
             dummy_dfp = []
             for channel in channels:
-                name, unit = self._channel_getters[channel]
+                _, unit = self._channel_getters[channel]
                 dummy_dfp.append(
                     DataFromPlugins(name=channel,
-                                    data=[np.array([0.0]) for name in controller_names],
+                                    data=[np.array([0.0]) for _ in controller_names],
                                     dim='Data0D',
                                     labels=controller_names,
                                     units=unit))
             self.dte_signal_temp.emit(DataToExport('STM-2 Group Data', data=dummy_dfp))
 
         initialized = len(self.controllers) > 0
-        info = f"{len(self.controllers)} STM-2 connecté(s) : {', '.join(self.controllers.keys())}"
+        info = f"{len(self.controllers)} STM-2 connected : {', '.join(self.controllers.keys())}"
         return info, initialized
 
     def close(self):
         """Terminate the communication protocol with every connected STM-2."""
+        for ctrl in self.controllers.values():
+            ctrl.close()
         self.controllers.clear()
         self._ports_in_use.clear()
 
@@ -243,6 +295,9 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
         One DataFromPlugins is built per checked channel (frequency/thickness/thickness_rate),
         each containing one value per connected controller — so PyMoDAQ opens/updates one window
         per channel, each showing every QCM as a separate curve.
+
+        Naverage is not used: hardware averaging is not implemented (hardware_averaging is False),
+        PyMoDAQ averages the grabs itself.
         """
         channels = self._active_channels()
         controller_names = list(self.controllers.keys())
@@ -258,12 +313,12 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
                 try:
                     value = getattr(self.controllers[name], getter_name)()
                 except Exception as e:
-                    self.emit_status(ThreadCommand('Update_Status', [f'Erreur lecture {name} : {e}', 'log']))
+                    self._report_error(f'Error reading {name} : {e}')
                     value = np.nan
                 values.append(np.array([value]))
             data_list.append(DataFromPlugins(name=channel, data=values, dim='Data0D',
                                             labels=[f'{name}' for name in controller_names],
-                                            units = 'test'))
+                                            units=unit))
 
         self.dte_signal.emit(DataToExport('STM-2 Group Data', data=data_list))
 
