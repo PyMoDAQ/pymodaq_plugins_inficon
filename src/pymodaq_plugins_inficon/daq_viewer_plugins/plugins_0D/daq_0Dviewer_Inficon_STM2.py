@@ -45,7 +45,6 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
 
     def ini_attributes(self):
         self.controller: InficonSTM2 = None
-        self.controller = None
         self.stm2_ports = InficonSTM2().stm2_ports
         self.port = None
         self.port_change = False
@@ -71,7 +70,7 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
         try:
             if param.name() == 'device_serial_number':
                 old_port = self.port
-                self.port = param.value()[-5:-1]
+                self.port = param.value().rsplit('(', 1)[-1].rstrip(')')
                 if old_port != self.port:
                     self.port_change = True
                     self.controller = InficonSTM2(self.port)

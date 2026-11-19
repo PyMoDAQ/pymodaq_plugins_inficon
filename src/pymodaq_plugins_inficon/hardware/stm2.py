@@ -60,24 +60,25 @@ class SerialBaseSMDP :
 
     @staticmethod
     def resp_status(cmd_bytes, resp_status_bytes):
-        error_code = resp_status_bytes - cmd_bytes
-        if error_code > 7:
-            error_code += -8
-        elif error_code == 1:
+        """Returns True if the power-fail flag (bit D3) is set. Status = bits D2-D0."""
+        cmd = chr(cmd_bytes)
+        error_code = resp_status_bytes & 0x07
+        power_fail = bool(resp_status_bytes & 0x08)
+        if error_code == 1:
             pass
         elif error_code == 2:
-            raise ConnectionError(f"Illegal command (command code not valid) : {cmd_bytes}.")
+            raise ConnectionError(f"Illegal command (command code not valid) : {cmd}.")
         elif error_code == 3:
-            raise ConnectionError(f"Syntax error (too many bytes in data field, not enough bytes) for command {cmd_bytes}.")
+            raise ConnectionError(f"Syntax error (too many bytes in data field, not enough bytes) for command {cmd}.")
         elif error_code == 4:
-            raise ConnectionError(f"Data range error for command : {cmd_bytes}.")
+            raise ConnectionError(f"Data range error for command : {cmd}.")
         elif error_code == 5:
-            raise ConnectionError(f"Command {cmd_bytes} inhibited.")
+            raise ConnectionError(f"Command {cmd} inhibited.")
         elif error_code == 6:
-            raise ConnectionError(f"{cmd_bytes} : obsolete command, no action taken.")
+            raise ConnectionError(f"{cmd} : obsolete command, no action taken.")
         else:
-            raise ConnectionError(f"Response status for command : {cmd_bytes} not listed : {error_code}.")
-
+            raise ConnectionError(f"Response status for command : {cmd} not listed : {error_code}.")
+        return power_fail
 class InficonSTM2:
 
     def __init__(self, port=None):

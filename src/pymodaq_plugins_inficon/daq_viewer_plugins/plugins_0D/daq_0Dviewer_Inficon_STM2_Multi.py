@@ -263,7 +263,7 @@ class DAQ_0DViewer_Inficon_STM2_Multi(DAQ_Viewer_base):
                 values.append(np.array([value]))
             data_list.append(DataFromPlugins(name=channel, data=values, dim='Data0D',
                                             labels=[f'{name}' for name in controller_names],
-                                            units = 'test'))
+                                            units = unit))
 
         self.dte_signal.emit(DataToExport('STM-2 Group Data', data=data_list))
 
