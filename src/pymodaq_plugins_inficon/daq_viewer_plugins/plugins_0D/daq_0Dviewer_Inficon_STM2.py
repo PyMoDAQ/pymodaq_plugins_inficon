@@ -78,6 +78,7 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
                     self.port_change = False
                 self.emit_status(ThreadCommand('Update_Status', ["Selected port is now : " + str(self.port), 'log']))
             elif param.name() == 'set_timer_thickness_zeroes':
+                print("on est la")
                 self.controller.set_timer_thickness_zeroes()
             elif param.name() == 'film_name':
                 self.controller.set_film_name(param.value())
@@ -95,12 +96,13 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
         infos = ('Model and firmware version : {}, Build type : {}, Firmware CRC : {}, Reset Status : {}'.format
                  (self.controller.get_infos(), self.controller.get_build_type(), self.controller.get_firmware_crc(),
                   self.controller.get_reset_status()))
-        self.settings.child('device_info').setValue(infos)
-        self.settings.child('crystal_status').setValue(self.controller.get_cristal_status())
-        self.settings.child('film_name').setValue(self.controller.get_film_name())
-        self.settings.child('film_density').setValue(self.controller.get_film_density())
-        self.settings.child('film_zratio').setValue(self.controller.get_film_zratio())
-        self.settings.child('samples_number').setValue(self.controller.get_samples_number())
+        with self.settings.treeChangeBlocker():
+            self.settings.child('device_info').setValue(infos)
+            self.settings.child('crystal_status').setValue(self.controller.get_cristal_status())
+            self.settings.child('film_name').setValue(self.controller.get_film_name())
+            self.settings.child('film_density').setValue(float(self.controller.get_film_density()))
+            self.settings.child('film_zratio').setValue(float(self.controller.get_film_zratio()))
+            self.settings.child('samples_number').setValue(int(self.controller.get_samples_number()))
 
     def ini_detector(self, controller=None):
         """Detector communication initialization
@@ -132,23 +134,23 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
 
         self.dte_signal_temp.emit(DataToExport('STM-2 Data',
                                                data=[DataFromPlugins(name='STM-2 Frequency',
-                                                                     data=[np.array([0, 5])],
+                                                                     data=[np.array([0, 0])],
                                                                      dim='Data0D',
                                                                      labels=['Frequency (Hz)']),
                                                      DataFromPlugins(name='STM-2 Thickness',
-                                                                     data=[np.array([0, 5])],
+                                                                     data=[np.array([0, 0])],
                                                                      dim='Data0D',
                                                                      labels=['Thickness (Å)']),
                                                      DataFromPlugins(name='STM-2 Rate',
-                                                                     data=[np.array([0, 5])],
+                                                                     data=[np.array([0, 0])],
                                                                      dim='Data0D',
                                                                      labels=['Rate (Å/s)']),
                                                      # DataFromPlugins(name='STM-2 Film mass',
-                                                     #                 data=[np.array([0, 5])],
+                                                     #                 data=[np.array([0, 0])],
                                                      #                 dim='Data0D',
                                                      #                 labels=['Film mass (µg/cm²)']),
                                                      # DataFromPlugins(name='STM-2 Mass accumulation rate',
-                                                     #                 data=[np.array([0, 5])],
+                                                     #                 data=[np.array([0, 0])],
                                                      #                 dim='Data0D',
                                                      #                 labels=['Mass accumulation rate (μg/(*s/cm²))'])
                                                                      ]))

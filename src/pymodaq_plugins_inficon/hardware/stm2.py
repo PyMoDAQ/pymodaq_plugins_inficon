@@ -32,9 +32,9 @@ class SerialBaseSMDP :
                 resp_bytes = s.read_until(bytes([0x0D]))
                 return self.check_response(cmd_bytes, resp_bytes)
         except serial.SerialException as e:
-            raise ConnectionError(f'Serial error : {e}')
-        except Exception as e:
-            raise Exception(f'Unexpected error : {e}')
+            raise ConnectionError(f'Serial error : {e}') from e
+        except Exception:
+            raise
 
     def check_response(self, cmd_bytes, resp_bytes) :
         if resp_bytes:
