@@ -1,5 +1,20 @@
 import serial.tools.list_ports
 
+SILICON_LABS_VID = 0x10C4  # USB vendor id of Silicon Labs (CP210x USB/UART bridges)
+
+def find_stm2_ports(probe: bool = True) -> list:
+    """Names of the serial ports on which an STM-2 is connected. Never raises."""
+    ports = []
+    for port in serial.tools.list_ports.comports():
+        if port.vid == SILICON_LABS_VID or (port.manufacturer and "Silicon" in port.manufacturer):
+            if probe:
+                try:
+                    InficonSTM2(port.device).get_serial_number()
+                except Exception:
+                    continue  # not an STM-2, or not answering
+            ports.append(port.device)
+    return ports
+
 class SerialBaseSMDP :
 
     ADR = [0x22]
@@ -8,15 +23,8 @@ class SerialBaseSMDP :
         self.stm2_ports = []
 
     def search_stm2_ports(self) -> None:
-        """Searches for STM-2 in COM ports of the computer. Adds them in stm2_ports list attribute."""
-        """ Methode modifiée par Lucas après commit initial"""
-        ports = serial.tools.list_ports.comports()
-        for port in ports:
-            if port.manufacturer and "Silicon" in port.manufacturer:
-                try:
-                    self.stm2_ports.append(port.device)
-                except:
-                    pass
+        """Searches for STM-2 in the COM ports of the computer. Fills the stm2_ports list attribute."""
+        self.stm2_ports = find_stm2_ports()
         if not self.stm2_ports:
             raise ConnectionError("STM-2 not found, check connections and driver installation.")
 
